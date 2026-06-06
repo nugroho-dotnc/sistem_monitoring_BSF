@@ -7,6 +7,8 @@ MQTT_BROKER = "localhost" # Ganti jika broker ada di IP lain
 MQTT_PORT = 1883
 MQTT_TOPIC = "sensor/data"
 
+mqtt_client = mqtt.Client()
+
 def on_connect(client, userdata, flags, rc):
     print(f"MQTT Connected with result code {rc}")
     client.subscribe(MQTT_TOPIC)
@@ -31,6 +33,11 @@ def on_message(client, userdata, msg):
                 db.add(device)
                 db.commit()
                 db.refresh(device)
+                
+                # Buat threshold default
+                threshold = models.Threshold(device_id=device.id)
+                db.add(threshold)
+                db.commit()
 
             # Simpan log sensor ke database
             new_log = models.SensorLog(
@@ -54,13 +61,13 @@ def on_message(client, userdata, msg):
         print(f"Error handling message: {e}")
 
 def start_mqtt():
-    client = mqtt.Client()
-    client.on_connect = on_connect
-    client.on_message = on_message
+    mqtt_client.on_connect = on_connect
+    mqtt_client.on_message = on_message
 
     try:
-        client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        client.loop_start() # Jalankan di background thread
-        print(f"Mulai mendengarkan MQTT Broker di {MQTT_BROKER}:{MQTT_PORT}")
+        # Menggunakan connect_async agar jika broker mati, ia akan terus mencoba reconnect di background
+        mqtt_client.connect_async(MQTT_BROKER, MQTT_PORT, 60)
+        mqtt_client.loop_start() # Jalankan di background thread
+        print(f"Mulai mendengarkan MQTT Broker di {MQTT_BROKER}:{MQTT_PORT} (auto-reconnect enabled)")
     except Exception as e:
-        print(f"Gagal koneksi ke MQTT broker: {e}")
+        print(f"Gagal inisialisasi MQTT client: {e}")

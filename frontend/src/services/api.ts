@@ -33,5 +33,26 @@ export const api = {
       throw new Error('Gagal mengambil data historis');
     }
     return response.json();
+  },
+
+  getThreshold: async (uniqueCode: string): Promise<any> => {
+    const response = await fetch(`${API_BASE_URL}/threshold/${uniqueCode}`);
+    if (!response.ok) {
+      throw new Error('Gagal mengambil konfigurasi threshold');
+    }
+    return response.json();
+  },
+
+  updateThreshold: async (uniqueCode: string, data: any): Promise<any> => {
+    const response = await fetch(`${API_BASE_URL}/threshold/${uniqueCode}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || 'Gagal menyimpan konfigurasi threshold');
+    }
+    return response.json();
   }
 };

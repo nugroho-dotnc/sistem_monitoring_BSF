@@ -21,9 +21,11 @@ export const ChartCard: React.FC<ChartCardProps> = ({ data, dataKey, color, titl
   };
 
   return (
-    <div className="card" style={{ height: '400px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <h3 className="text-display" style={{ fontSize: '24px' }}>{title} <span style={{fontSize: '16px', color: 'var(--color-muted)', fontFamily: 'var(--font-body)'}}>({unit})</span></h3>
-      <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
+    <div className="card-base h-[400px] flex flex-col gap-md">
+      <h3 className="text-display text-2xl text-ink">
+        {title} <span className="text-base text-muted font-sans font-normal">({unit})</span>
+      </h3>
+      <div className="flex-1 w-full min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hairline)" vertical={false} />
@@ -45,13 +47,13 @@ export const ChartCard: React.FC<ChartCardProps> = ({ data, dataKey, color, titl
             <Tooltip 
               labelFormatter={(label) => formatTime(label as string)}
               contentStyle={{ 
-                backgroundColor: 'var(--color-surface-dark)', 
+                backgroundColor: 'var(--color-canvas-dark)', 
                 color: 'var(--color-on-dark)',
                 borderRadius: '8px',
                 border: 'none',
-                fontFamily: 'var(--font-body)',
+                fontFamily: 'var(--font-sans)',
                 fontSize: '14px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                boxShadow: '0 4px 12px rgba(0,30,43,0.12)'
               }}
               itemStyle={{ color: 'var(--color-on-dark)' }}
             />
@@ -61,7 +63,7 @@ export const ChartCard: React.FC<ChartCardProps> = ({ data, dataKey, color, titl
               stroke={color} 
               strokeWidth={3}
               dot={false}
-              activeDot={{ r: 6, fill: color, stroke: 'var(--color-surface-dark)', strokeWidth: 2 }}
+              activeDot={{ r: 6, fill: color, stroke: 'var(--color-canvas-dark)', strokeWidth: 2 }}
             />
           </LineChart>
         </ResponsiveContainer>

@@ -1,12 +1,14 @@
+import json
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import List, Optional
+from pydantic import BaseModel, model_validator
 
 import models
 from database import SessionLocal, engine
-from mqtt_client import start_mqtt
+from mqtt_client import start_mqtt, mqtt_client
 
 # Buat tabel jika belum ada
 models.Base.metadata.create_all(bind=engine)
@@ -16,7 +18,10 @@ app = FastAPI(title="Smart Maggot Farming API")
 # Setup CORS agar bisa diakses oleh Frontend (React)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Ganti dengan domain React saat production
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,6 +40,34 @@ def get_db():
 def startup_event():
     start_mqtt()
 
+class ThresholdUpdate(BaseModel):
+    temp_warning: float
+    temp_critical: float
+    humid_warning: float
+    humid_critical: float
+    light_warning: float
+    light_critical: float
+
+    @model_validator(mode='after')
+    def check_thresholds(self):
+        if self.temp_warning is not None and self.temp_critical is not None and self.temp_warning >= self.temp_critical:
+            raise ValueError('temp_warning must be less than temp_critical')
+        
+        if self.humid_warning is not None and self.humid_critical is not None and self.humid_warning <= self.humid_critical:
+            raise ValueError('humid_warning must be greater than humid_critical')
+
+        if self.light_warning is not None and self.light_critical is not None and self.light_warning <= self.light_critical:
+            raise ValueError('light_warning must be greater than light_critical')
+
+        if self.temp_warning is not None and self.temp_warning < 0: raise ValueError('temp_warning must be positive')
+        if self.temp_critical is not None and self.temp_critical < 0: raise ValueError('temp_critical must be positive')
+        if self.humid_warning is not None and self.humid_warning < 0: raise ValueError('humid_warning must be positive')
+        if self.humid_critical is not None and self.humid_critical < 0: raise ValueError('humid_critical must be positive')
+        if self.light_warning is not None and self.light_warning < 0: raise ValueError('light_warning must be positive')
+        if self.light_critical is not None and self.light_critical < 0: raise ValueError('light_critical must be positive')
+
+        return self
+
 @app.get("/")
 def read_root():
     return {"message": "API Smart Maggot Farming Berjalan!"}
@@ -51,6 +84,58 @@ def get_device(unique_code: str, db: Session = Depends(get_db)):
         "name": device.name,
         "location": device.location
     }
+
+@app.get("/api/threshold/{unique_code}")
+def get_threshold(unique_code: str, db: Session = Depends(get_db)):
+    device = db.query(models.Device).filter(models.Device.unique_code == unique_code).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan")
+    
+    threshold = db.query(models.Threshold).filter(models.Threshold.device_id == device.id).first()
+    if not threshold:
+        # Create default if not exist (fallback)
+        threshold = models.Threshold(device_id=device.id)
+        db.add(threshold)
+        db.commit()
+        db.refresh(threshold)
+        
+    return threshold
+
+@app.put("/api/threshold/{unique_code}")
+def update_threshold(unique_code: str, data: ThresholdUpdate, db: Session = Depends(get_db)):
+    device = db.query(models.Device).filter(models.Device.unique_code == unique_code).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan")
+
+    threshold = db.query(models.Threshold).filter(models.Threshold.device_id == device.id).first()
+    if not threshold:
+        threshold = models.Threshold(device_id=device.id)
+        db.add(threshold)
+    
+    threshold.temp_warning = data.temp_warning
+    threshold.temp_critical = data.temp_critical
+    threshold.humid_warning = data.humid_warning
+    threshold.humid_critical = data.humid_critical
+    threshold.light_warning = data.light_warning
+    threshold.light_critical = data.light_critical
+    threshold.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(threshold)
+    
+    payload = {
+        "temp_warning": threshold.temp_warning,
+        "temp_critical": threshold.temp_critical,
+        "humid_warning": threshold.humid_warning,
+        "humid_critical": threshold.humid_critical,
+        "light_warning": threshold.light_warning,
+        "light_critical": threshold.light_critical
+    }
+    
+    topic = f"threshold/config/{unique_code}"
+    mqtt_client.publish(topic, json.dumps(payload))
+    
+    return threshold
 
 @app.get("/api/sensor/{unique_code}")
 def get_historical_sensor_data(

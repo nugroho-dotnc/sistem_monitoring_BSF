@@ -3,13 +3,15 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include "DHT.h"
+#include <Preferences.h>
+#include <ArduinoJson.h>
 
 // ======================
 // Konfigurasi WiFi & MQTT
 // ======================
-const char* ssid = "realme 8i";
-const char* password = "11111111";
-const char* mqtt_server = "10.41.129.43"; // Ganti dengan IP Broker Mosquitto Anda
+const char* ssid = "Adesukma";
+const char* password = "25354555";
+const char* mqtt_server = "192.168.100.6"; // Ganti dengan IP Broker Mosquitto Anda
 const int mqtt_port = 1883;
 
 // ======================
@@ -25,6 +27,10 @@ const int mqtt_port = 1883;
 #define LED_MERAH 25
 #define LED_HIJAU 26
 #define BUZZER 27
+
+// device name
+#define DEVICE_ID "BSF-001"
+#define TOPIC_CONFIG  "threshold/config/" DEVICE_ID
 
 // ======================
 // Inisialisasi Objek
@@ -42,16 +48,60 @@ float kelembapan = 0;
 int nilaiLDR = 0;
 bool dhtError = false;
 
+// Variabel Threshold (Bisa diupdate via MQTT)
+float tempWarn = 30.0;
+float tempCrit = 32.0;
+float humidWarn = 60.0;
+float humidCrit = 50.0;
+float lightWarn = 2500.0;
+float lightCrit = 2000.0;
+
+Preferences preferences;
+
 // Variabel Waktu (millis)
 unsigned long lastSensorReadTime = 0;
 unsigned long lastLcdUpdateTime = 0;
 unsigned long lastMqttPublishTime = 0;
 
-const long sensorReadInterval = 2000; // Baca sensor tiap 2 detik
-const long lcdUpdateInterval = 2000;  // Update LCD tiap 2 detik bergantian
+const long sensorReadInterval = 2000;  // Baca sensor tiap 2 detik
+const long lcdUpdateInterval = 2000;   // Update LCD tiap 2 detik bergantian
 const long mqttPublishInterval = 5000; // Kirim MQTT tiap 5 detik
 
 int lcdState = 0; // 0 = Tampil Suhu/Kelembaban, 1 = Tampil Cahaya
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Pesan tiba di topik: ");
+  Serial.println(topic);
+
+  StaticJsonDocument<512> doc;
+  DeserializationError error = deserializeJson(doc, payload, length);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.c_str());
+    return;
+  }
+
+  // Update variabel jika key tersedia di JSON
+  if (doc.containsKey("temp_warning")) tempWarn = doc["temp_warning"];
+  if (doc.containsKey("temp_critical")) tempCrit = doc["temp_critical"];
+  if (doc.containsKey("humid_warning")) humidWarn = doc["humid_warning"];
+  if (doc.containsKey("humid_critical")) humidCrit = doc["humid_critical"];
+  if (doc.containsKey("light_warning")) lightWarn = doc["light_warning"];
+  if (doc.containsKey("light_critical")) lightCrit = doc["light_critical"];
+
+  // Simpan ke NVS
+  preferences.begin("thresholds", false);
+  preferences.putFloat("tempWarn", tempWarn);
+  preferences.putFloat("tempCrit", tempCrit);
+  preferences.putFloat("humidWarn", humidWarn);
+  preferences.putFloat("humidCrit", humidCrit);
+  preferences.putFloat("lightWarn", lightWarn);
+  preferences.putFloat("lightCrit", lightCrit);
+  preferences.end();
+
+  Serial.println("Thresholds diperbarui dan disimpan.");
+}
 
 void setup_wifi() {
   delay(10);
@@ -73,20 +123,21 @@ void setup_wifi() {
 }
 
 void reconnect() {
-  // Loop until we're reconnected
+  // Loop terus sampai terhubung kembali
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     String clientId = "ESP32Client-";
     clientId += String(random(0xffff), HEX);
     
-    // Attempt to connect
+    // Mencoba Connect
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
+      // Berlangganan menggunakan macro TOPIC_CONFIG yang sudah didefinisikan di atas
+      client.subscribe(TOPIC_CONFIG);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
       Serial.println(" try again in 5 seconds");
-      // Tunggu 5 detik sebelum mencoba lagi
       delay(5000);
     }
   }
@@ -95,7 +146,17 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
 
-  // I2C ESP32
+  // Load Preferences
+  preferences.begin("thresholds", true); // read-only mode
+  tempWarn = preferences.getFloat("tempWarn", 30.0);
+  tempCrit = preferences.getFloat("tempCrit", 32.0);
+  humidWarn = preferences.getFloat("humidWarn", 60.0);
+  humidCrit = preferences.getFloat("humidCrit", 50.0);
+  lightWarn = preferences.getFloat("lightWarn", 2500.0);
+  lightCrit = preferences.getFloat("lightCrit", 2000.0);
+  preferences.end();
+
+  // I2C ESP32 (SDA, SCL)
   Wire.begin(21, 22);
 
   // LCD
@@ -121,6 +182,7 @@ void setup() {
   
   setup_wifi();
   client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
   
   lcd.clear();
 }
@@ -150,9 +212,8 @@ void loop() {
     } else {
       dhtError = false;
       
-      // Logika Alert Independen sesuai PRD
-      // Suhu > 32 °C ATAU Kelembaban < 50 % -> Aktifkan Alarm
-      if (suhu > 32.0 || kelembapan < 50.0 || nilaiLDR < 2000) {
+      // Logika Alert Independen (Kritikal)
+      if (suhu > tempCrit || kelembapan < humidCrit || nilaiLDR < lightCrit) {
         digitalWrite(LED_MERAH, HIGH);
         digitalWrite(BUZZER, HIGH);
         digitalWrite(LED_HIJAU, LOW);
@@ -211,9 +272,9 @@ void loop() {
     lastMqttPublishTime = currentMillis;
 
     if (!dhtError) {
-      // Bentuk JSON sesuai PRD dengan penambahan unique_code
+      // Perbaikan String JSON: Menggunakan format yang valid dengan DEVICE_ID
       String payload = "{";
-      payload += "\"unique_code\": \"BSF-001\", ";
+      payload += "\"unique_code\": \"" DEVICE_ID "\", ";
       payload += "\"temperature\": " + String(suhu, 1) + ", ";
       payload += "\"humidity\": " + String(kelembapan, 0) + ", ";
       payload += "\"light_intensity\": " + String(nilaiLDR);

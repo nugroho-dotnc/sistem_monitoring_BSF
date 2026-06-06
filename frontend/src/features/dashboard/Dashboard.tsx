@@ -1,23 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
-import { type Device, type SensorLog } from '../../types';
-import { MetricCard } from '../../components/MetricCard';
-import { ChartCard } from '../../components/ChartCard';
-import { subYears, subMonths, subDays } from 'date-fns';
+import type { Device, SensorReading } from '../../types';
+import { METRICS, getStatus, getWorstStatus } from '../../utils/dashboard';
+import { subHours, subDays, subMonths } from 'date-fns';
+
+import { ConnectionBanner } from '../../components/ConnectionBanner';
+import { StatusBanner } from '../../components/StatusBanner';
+import { MetricGrid } from '../../components/MetricGrid';
+import { HistorySection } from '../../components/HistorySection';
+import type { TimeRange } from '../../components/TimeRangeFilter';
+import { useThreshold } from '../../hooks/useThreshold';
+import { Layout } from '../../components/Layout';
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [device, setDevice] = useState<Device | null>(null);
-  const [latestData, setLatestData] = useState<SensorLog | null>(null);
-  const [historicalData, setHistoricalData] = useState<SensorLog[]>([]);
-  const [timeFilter, setTimeFilter] = useState('all');
+  const [latestData, setLatestData] = useState<SensorReading | undefined>(undefined);
+  const [historicalData, setHistoricalData] = useState<SensorReading[]>([]);
+  const [timeRange, setTimeRange] = useState<TimeRange>('1h');
+  const [isConnectionLost, setIsConnectionLost] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // Logout handler
-  const handleLogout = () => {
-    localStorage.removeItem('device');
-    navigate('/');
-  };
+  const { config: thresholds } = useThreshold(device?.unique_code);
 
   // Load Initial Device
   useEffect(() => {
@@ -29,140 +34,98 @@ export const Dashboard: React.FC = () => {
     setDevice(JSON.parse(saved));
   }, [navigate]);
 
-  // Polling Latest Data (Every 5 seconds)
+  // Polling logic
   useEffect(() => {
     if (!device) return;
+    let isMounted = true;
 
-    const fetchLatest = async () => {
+    const fetchData = async () => {
       try {
-        const data = await api.getLatestData(device.unique_code);
-        setLatestData(data);
-      } catch (err) {
-        console.error("Gagal mengambil data terbaru", err);
-      }
-    };
-
-    fetchLatest();
-    const interval = setInterval(fetchLatest, 5000);
-    return () => clearInterval(interval);
-  }, [device]);
-
-  // Fetch Historical Data
-  useEffect(() => {
-    if (!device) return;
-
-    const fetchHistory = async () => {
-      try {
+        // Calculate start time based on timeRange
         let start: string | undefined = undefined;
         const now = new Date();
-        
-        switch (timeFilter) {
-          case '1y': start = subYears(now, 1).toISOString(); break;
-          case '6m': start = subMonths(now, 6).toISOString(); break;
-          case '3m': start = subMonths(now, 3).toISOString(); break;
-          case '1m': start = subMonths(now, 1).toISOString(); break;
+        switch (timeRange) {
+          case '1h': start = subHours(now, 1).toISOString(); break;
+          case '24h': start = subHours(now, 24).toISOString(); break;
           case '7d': start = subDays(now, 7).toISOString(); break;
-          case 'all': default: start = undefined; break;
+          case '1m': start = subMonths(now, 1).toISOString(); break;
         }
-        
-        const data = await api.getHistoricalData(device.unique_code, start, undefined);
-        setHistoricalData(data);
+
+        // Fetch concurrently
+        const [latest, history] = await Promise.all([
+          api.getLatestData(device.unique_code),
+          api.getHistoricalData(device.unique_code, start, undefined)
+        ]);
+
+        if (isMounted) {
+          setLatestData(latest);
+          setHistoricalData(history);
+          setIsConnectionLost(false);
+          setLastUpdated(new Date());
+        }
       } catch (err) {
-        console.error("Gagal mengambil histori", err);
+        if (isMounted) {
+          setIsConnectionLost(true);
+        }
       }
     };
 
-    fetchHistory();
-    // Refresh history every 30s
-    const interval = setInterval(fetchHistory, 30000);
-    return () => clearInterval(interval);
-  }, [device, timeFilter]);
+    fetchData();
+    const intervalId = setInterval(fetchData, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [device, timeRange]);
 
   if (!device) return null;
 
+  // Determine overall status
+  const statuses = latestData ? METRICS.map(m => getStatus(m.key, latestData[m.key], thresholds)) : [];
+  const overallStatus = getWorstStatus(statuses);
+
+  let statusMessage = "All conditions are within safe range.";
+  if (latestData) {
+    if (overallStatus === 'critical') {
+      const criticalMetrics = METRICS.filter(m => getStatus(m.key, latestData[m.key], thresholds) === 'critical').map(m => m.label);
+      statusMessage = `Critical: ${criticalMetrics.join(' and ')} require${criticalMetrics.length > 1 ? '' : 's'} immediate attention.`;
+    } else if (overallStatus === 'warning') {
+      const warningMetrics = METRICS.filter(m => getStatus(m.key, latestData[m.key], thresholds) === 'warning').map(m => m.label);
+      statusMessage = `Attention: ${warningMetrics.join(' and ')} ${warningMetrics.length > 1 ? 'are' : 'is'} approaching its threshold.`;
+    }
+  } else if (!isConnectionLost) {
+    statusMessage = "Loading sensor data...";
+  }
+
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: 'var(--spacing-xl) var(--spacing-lg)' }}>
-      {/* Header */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
-        <div>
-          <h1 className="text-display" style={{ fontSize: '36px', color: 'var(--color-primary)' }}>
-            Smart Maggot Farming
-          </h1>
-          <p style={{ color: 'var(--color-muted)' }}>
-            Kandang: {device.name} • {device.location}
-          </p>
+    <Layout device={device}>
+      <ConnectionBanner isVisible={isConnectionLost} />
+      
+      {/* Main Content */}
+      <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 sm:px-6 py-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-2">
+          <StatusBanner status={latestData ? overallStatus : 'normal'} message={statusMessage} />
         </div>
-        <button onClick={handleLogout} className="button-primary" style={{ backgroundColor: 'var(--color-surface-dark)' }}>
-          Keluar
-        </button>
-      </header>
 
-      {/* Real-time Metrics */}
-      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h2 className="text-display" style={{ fontSize: '28px', marginBottom: 'var(--spacing-md)' }}>Pemantauan Real-time</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--spacing-lg)' }}>
-          <MetricCard 
-            title="Suhu" 
-            value={latestData?.temperature ?? '-'} 
-            unit="°C" 
-            isWarning={latestData ? (latestData.temperature > 32 || latestData.temperature < 24) : false}
-          />
-          <MetricCard 
-            title="Kelembaban" 
-            value={latestData?.humidity ?? '-'} 
-            unit="%" 
-            isWarning={latestData ? (latestData.humidity > 80 || latestData.humidity < 50) : false}
-          />
-          <MetricCard 
-            title="Intensitas Cahaya" 
-            value={latestData?.light_intensity ?? '-'} 
-            unit="ADC" 
-          />
-        </div>
-      </section>
+        <MetricGrid 
+          latestData={latestData || null} 
+          historyData={historicalData} 
+          thresholds={thresholds} 
+        />
 
-      {/* Historical Charts */}
-      <section>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 'var(--spacing-md)' }}>
-          <h2 className="text-display" style={{ fontSize: '28px' }}>Grafik Historis</h2>
-          
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--color-muted)' }}>Rentang Waktu</label>
-              <select 
-                className="text-input" 
-                style={{ height: '32px', fontSize: '14px', minWidth: '150px' }}
-                value={timeFilter}
-                onChange={e => setTimeFilter(e.target.value)}
-              >
-                <option value="all">Semua Data</option>
-                <option value="1y">1 Tahun Terakhir</option>
-                <option value="6m">6 Bulan Terakhir</option>
-                <option value="3m">3 Bulan Terakhir</option>
-                <option value="1m">1 Bulan Terakhir</option>
-                <option value="7d">7 Hari Terakhir</option>
-              </select>
-            </div>
+        <HistorySection 
+          data={historicalData}
+          timeRange={timeRange}
+          onTimeRangeChange={setTimeRange}
+          thresholds={thresholds}
+        />
+
+        {lastUpdated && (
+          <div className="text-center text-xs text-slate-400 mt-8">
+            Last updated: {lastUpdated.toLocaleTimeString()}
           </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--spacing-lg)' }}>
-          <ChartCard 
-            title="Tren Suhu" 
-            data={historicalData} 
-            dataKey="temperature" 
-            color="#cc785c" 
-            unit="°C" 
-          />
-          <ChartCard 
-            title="Tren Kelembaban" 
-            data={historicalData} 
-            dataKey="humidity" 
-            color="#5db8a6" 
-            unit="%" 
-          />
-        </div>
-      </section>
-    </div>
+        )}
+      </main>
+    </Layout>
   );
 };
