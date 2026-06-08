@@ -9,9 +9,9 @@
 // ======================
 // Konfigurasi WiFi & MQTT
 // ======================
-const char* ssid = "Adesukma";
-const char* password = "25354555";
-const char* mqtt_server = "192.168.100.6"; // Ganti dengan IP Broker Mosquitto Anda
+const char* ssid = "realme 8i";
+const char* password = "11111111";
+const char* mqtt_server = "10.101.17.43"; // Ganti dengan IP Broker Mosquitto Anda
 const int mqtt_port = 1883;
 
 // ======================
@@ -274,7 +274,7 @@ void loop() {
     if (!dhtError) {
       // Perbaikan String JSON: Menggunakan format yang valid dengan DEVICE_ID
       String payload = "{";
-      payload += "\"unique_code\": \"" DEVICE_ID "\", ";
+      payload += "\"unique_cod e\": \"" DEVICE_ID "\", ";
       payload += "\"temperature\": " + String(suhu, 1) + ", ";
       payload += "\"humidity\": " + String(kelembapan, 0) + ", ";
       payload += "\"light_intensity\": " + String(nilaiLDR);
