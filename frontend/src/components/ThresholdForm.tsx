@@ -27,7 +27,7 @@ interface FieldConfig {
 const FIELDS: FieldConfig[] = [
   { metric: 'temperature', label: 'Temperature', unit: '°C', warnKey: 'temp_warning', critKey: 'temp_critical', min: 0, max: 60, step: 0.1, safeDirection: 'below' },
   { metric: 'humidity', label: 'Humidity', unit: '%', warnKey: 'humid_warning', critKey: 'humid_critical', min: 0, max: 100, step: 1, safeDirection: 'above' },
-  { metric: 'light_intensity', label: 'Light Intensity', unit: 'ADC', warnKey: 'light_warning', critKey: 'light_critical', min: 0, max: 4095, step: 1, safeDirection: 'above' },
+  { metric: 'light_intensity', label: 'Light Intensity', unit: '%', warnKey: 'light_warning', critKey: 'light_critical', min: 0, max: 100, step: 1, safeDirection: 'below' },
 ];
 
 export const ThresholdForm: React.FC<ThresholdFormProps> = ({ config, currentReadings, onUpdate, onSave, onReset, isDirty, saving }) => {
@@ -41,8 +41,8 @@ export const ThresholdForm: React.FC<ThresholdFormProps> = ({ config, currentRea
     if (updatedConfig.humid_warning <= updatedConfig.humid_critical) {
       newErrors.humidity = 'Warning must be strictly greater than Critical for Humidity.';
     }
-    if (updatedConfig.light_warning <= updatedConfig.light_critical) {
-      newErrors.light_intensity = 'Warning must be strictly greater than Critical for Light Intensity.';
+    if (updatedConfig.light_warning >= updatedConfig.light_critical) {
+      newErrors.light_intensity = 'Warning must be strictly less than Critical for Light Intensity.';
     }
     setErrors(newErrors);
   };

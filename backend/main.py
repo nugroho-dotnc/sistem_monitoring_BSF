@@ -56,8 +56,8 @@ class ThresholdUpdate(BaseModel):
         if self.humid_warning is not None and self.humid_critical is not None and self.humid_warning <= self.humid_critical:
             raise ValueError('humid_warning must be greater than humid_critical')
 
-        if self.light_warning is not None and self.light_critical is not None and self.light_warning <= self.light_critical:
-            raise ValueError('light_warning must be greater than light_critical')
+        if self.light_warning is not None and self.light_critical is not None and self.light_warning >= self.light_critical:
+            raise ValueError('light_warning must be less than light_critical')
 
         if self.temp_warning is not None and self.temp_warning < 0: raise ValueError('temp_warning must be positive')
         if self.temp_critical is not None and self.temp_critical < 0: raise ValueError('temp_critical must be positive')
