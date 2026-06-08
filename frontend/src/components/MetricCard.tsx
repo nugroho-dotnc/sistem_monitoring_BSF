@@ -17,7 +17,7 @@ const STATUS_COPY: Record<string, Record<string, string>> = {
   light_intensity: {
     normal:   "Intensitas cahaya mencukupi.",
     warning:  "Cahaya mulai melemah — periksa sumber cahaya.",
-    critical: "Cahaya tidak mencukupi — proses kawin BSF terganggu.",
+    critical: "Cahaya tidak mencukupi — maggot berpotensi mengalami stres .",
   },
 };
 
