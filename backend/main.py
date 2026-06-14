@@ -27,6 +27,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from routers import auth_router, device_router, feeding_router, weight_router
+app.include_router(auth_router.router)
+app.include_router(device_router.router)
+app.include_router(feeding_router.router)
+app.include_router(weight_router.router)
+
+
 # Dependency untuk mendapatkan koneksi Database
 def get_db():
     db = SessionLocal()

@@ -17,7 +17,7 @@ export const MetricGrid: React.FC<MetricGridProps> = ({ latestData, historyData,
           key={config.key}
           config={config}
           value={latestData ? Number(latestData[config.key]) : 0}
-          history={historyData}
+          history={historyData.slice(0, 60)}
           thresholds={thresholds}
         />
       ))}

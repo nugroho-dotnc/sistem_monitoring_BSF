@@ -165,11 +165,14 @@ systemctl status mosquitto
 ### 8b. Backend (FastAPI)
 Langkah konfigurasi penyedia data server:
 1. Pindah ke direktori utama: `cd backend/`
-2. Eksekusi `python -m venv venv`, kemudian jalankan `source venv/bin/activate` untuk membuat dan memasuki *virtual environment*.
+2. Eksekusi `python -m venv venv`, kemudian jalankan `source venv/bin/activate` untuk membuat dan memasuki *virtual environment* (jika di Windows gunakan `.\venv\Scripts\activate`).
 3. Pasang kepustakaan: `pip install -r requirements.txt`
-4. Konfigurasikan lingkungan variabel: **[VERIFY - Berkas `.env.example` maupun mekanisme baca `os.environ` tidak ditemukan dalam kode `backend/`. IP dan MQTT Port menggunakan deklarasi statis (*hardcode*) `localhost` dan `1883` di dalam file `mqtt_client.py`.]**
-5. Eksekusi server: `uvicorn main:app --reload`
-6. Ekspektasi CLI Terminal: Server melaporkan "Application startup complete" beserta informasi status "MQTT Connected with result code 0".
+4. **Migrasi Database (Alembic):** Proyek ini menggunakan Alembic untuk mengatur versi struktur database.
+   - Eksekusi pembuatan tabel awal: `alembic upgrade head`
+   - Jika Anda mengubah struktur `models.py`, generate migrasi baru dengan: `alembic revision --autogenerate -m "Deskripsi"` lalu jalankan lagi `alembic upgrade head`.
+5. Konfigurasikan lingkungan variabel: **[VERIFY - Berkas `.env.example` maupun mekanisme baca `os.environ` tidak ditemukan dalam kode `backend/`. IP dan MQTT Port menggunakan deklarasi statis (*hardcode*) `localhost` dan `1883` di dalam file `mqtt_client.py`.]**
+6. Eksekusi server: `uvicorn main:app --reload`
+7. Ekspektasi CLI Terminal: Server melaporkan "Application startup complete" beserta informasi status "MQTT Connected with result code 0".
 
 ### 8c. Frontend (React)
 Langkah konfigurasi klien monitor antarmuka:

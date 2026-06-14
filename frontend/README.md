@@ -1,23 +1,35 @@
 # Frontend Web Dashboard (React + Vite)
 
-Ini adalah antarmuka pengguna (UI) untuk Sistem Monitoring Maggot Farming. Dasbor ini dirancang dengan arsitektur *Clean Code* berbasis fitur dan mengadopsi gaya desain editorial (seperti Anthropic Claude) dengan palet warna bernuansa *warm cream* dan tipografi yang elegan.
+Ini adalah antarmuka pengguna (UI) cerdas untuk Sistem Monitoring Maggot Farming (BSF). Dasbor ini dirancang secara ekstensif menggunakan React, Tailwind CSS, dan Recharts, mengadopsi prinsip desain yang dinamis, bersih, dan memprioritaskan wawasan data (*data-driven insights*).
 
-## Fitur
-- **Login Kandang:** Verifikasi menggunakan *Unique Code* (contoh: `BSF-001`) yang dikirimkan oleh ESP32.
-- **Metrik Real-time:** Menampilkan Suhu, Kelembaban, dan LDR secara langsung dengan auto-refresh (polling) setiap 5 detik. Dilengkapi indikator peringatan visual jika kondisi abnormal.
-- **Grafik Historis:** Visualisasi tren data sensor menggunakan `recharts` yang dapat di-filter berdasarkan rentang waktu (tanggal dan jam).
+## Fitur Unggulan
+
+1. **Dashboard 5 Zona Cerdas:**
+   - **Zone 1 (Alert Banner):** Spanduk peringatan otomatis jika kondisi kandang melampaui batas kritis.
+   - **Zone 2 (Live Sensor):** Kartu metrik Suhu, Kelembaban, dan Cahaya dengan *sparkline* (grafik mini) 60 menit terakhir dan indikator warna latar yang berubah merah/kuning jika terdeteksi bahaya.
+   - **Zone 3 (Weekly KPI):** Kalkulasi otomatis indikator kinerja utama seperti **FCR (Feed Conversion Ratio)** dan rata-rata kenaikan berat harian (Gain).
+   - **Zone 4 (Analytics Charts):** 
+     - **Grafik Pakan vs Berat:** Memadukan diagram batang (pakan) dan garis (berat).
+     - **Grafik Sensor Terpadu:** Menerapkan algoritma **Normalisasi** di mana garis batas kritis (100%) selalu sejajar untuk semua sensor yang berbeda satuan, dipisah menjadi panel Suhu-Kelembaban dan Intensitas Cahaya (tipe anak tangga).
+     - **Grafik Efisiensi & Suhu:** *Scatter plot* korelasi pintar yang menghitung tren pertumbuhan linear (**R-Squared**) yang diwarnai secara spesifik berdasarkan rata-rata suhu harian.
+   - **Zone 5 (Auto-Insight):** Mesin analitik mini yang merangkum rekomendasi operasional kandang dalam bentuk teks yang mudah dicerna (contoh: "Pakan efisien", "Suhu terlalu panas").
+2. **Manajemen Multi-Kandang (Tab Navigasi):** Mendukung pemantauan banyak rak/kandang dalam satu layar dengan mekanisme tab dinamis (*Session Storage* aktif).
+3. **Pencatatan Pakan & Penimbangan (CRUD):** Formulir lengkap untuk mencatat sejarah pemberian makan dan hasil panen parsial maggot.
+4. **Dynamic Threshold Settings:** Halaman khusus untuk mengkalibrasi nilai *Warning* dan *Critical* untuk setiap kandang, langsung sinkron secara *real-time* dengan Dashboard.
+5. **Autentikasi (JWT):** Registrasi dan Login akun aman yang dipertahankan menggunakan State Management berbasis `Zustand`.
 
 ## Struktur Folder (Clean Architecture)
 ```text
 src/
 ├── assets/      # File statis (gambar, dll)
-├── components/  # UI Reusable (MetricCard, ChartCard)
+├── components/  # UI Reusable (MetricCard, AlertBanner, dll)
 ├── features/    # Layar utama
-│   ├── auth/         # Halaman Login
-│   └── dashboard/    # Halaman Dashboard & Logika Bisnis
-├── services/    # Pemanggilan API ke Backend FastAPI (api.ts)
+│   ├── auth/         # Halaman Login & Register
+│   └── dashboard/    # Pusat operasi (Dashboard, Settings, Charts)
+├── store/       # State Management (Zustand untuk auth)
+├── services/    # Pemanggilan API (Axios Interceptors dengan Smart Timezone fix)
 ├── types/       # Antarmuka TypeScript (Interface)
-└── index.css    # Variabel CSS dan styling global
+└── index.css    # Variabel CSS dan styling global Tailwind
 ```
 
 ## Cara Instalasi dan Menjalankan
@@ -36,4 +48,4 @@ src/
    ```
 
 Aplikasi web dapat diakses pada `http://localhost:5173`.
-Pastikan layanan Backend (FastAPI) dan MQTT Broker sudah menyala agar frontend dapat menampilkan data secara *real-time*.
+Pastikan layanan Backend (FastAPI) sudah berjalan di `http://localhost:8000`.

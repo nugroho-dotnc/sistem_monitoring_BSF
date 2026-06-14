@@ -59,12 +59,12 @@ export const ThresholdForm: React.FC<ThresholdFormProps> = ({ config, currentRea
     validate(updated);
   };
 
-  const renderSection = (field: FieldConfig) => {
+  const renderSection = (field: FieldConfig, index: number) => {
     const currentVal = currentReadings ? currentReadings[field.metric] : undefined;
     const currentStatus = currentVal !== undefined ? getStatus(field.metric, currentVal, config) : null;
     
     return (
-      <div key={field.metric} className="card-base mb-6">
+      <div key={field.metric} className={`p-6 sm:p-8 ${index !== FIELDS.length - 1 ? 'border-b border-slate-100' : ''}`}>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
           <h2 className="text-lg font-bold text-slate-800">{field.label} Configuration</h2>
           {currentVal !== undefined && currentStatus && (
@@ -142,35 +142,38 @@ export const ThresholdForm: React.FC<ThresholdFormProps> = ({ config, currentRea
 
   return (
     <div className="w-full">
-      {FIELDS.map(renderSection)}
-      
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white border-t border-slate-200 p-4 rounded-xl shadow-sm mt-8 gap-4">
-        <div className="text-sm text-slate-500">
-          Last saved: {new Date(config.updated_at).toLocaleString()}
-        </div>
-        <div className="flex gap-4 w-full sm:w-auto">
-          {isDirty && (
-            <button 
-              onClick={onReset}
-              disabled={saving}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors w-full sm:w-auto"
-            >
-              Reset
-            </button>
-          )}
-          <button 
-            onClick={onSave}
-            disabled={!isDirty || hasErrors || saving}
-            className={`px-6 py-2 text-sm font-medium text-white rounded-lg transition-colors w-full sm:w-auto flex justify-center items-center ${
-              !isDirty || hasErrors ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#0F766E] hover:bg-[#0D655E]'
-            }`}
-          >
-            {saving ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            ) : (
-              'Save & sync to device'
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+        {FIELDS.map((field, index) => renderSection(field, index))}
+        
+        {/* Save Footer */}
+        <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-50 border-t border-slate-200 p-4 sm:px-8 gap-4">
+          <div className="text-sm text-slate-500 font-medium">
+            Last saved: {new Date(config.updated_at).toLocaleString()}
+          </div>
+          <div className="flex gap-4 w-full sm:w-auto">
+            {isDirty && (
+              <button 
+                onClick={onReset}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 bg-slate-100 rounded-lg transition-colors w-full sm:w-auto"
+              >
+                Reset
+              </button>
             )}
-          </button>
+            <button 
+              onClick={onSave}
+              disabled={!isDirty || hasErrors || saving}
+              className={`px-6 py-2 text-sm font-medium text-white rounded-lg transition-colors w-full sm:w-auto flex justify-center items-center ${
+                !isDirty || hasErrors ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#0F766E] hover:bg-[#0D655E]'
+              }`}
+            >
+              {saving ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                'Save & sync to device'
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
