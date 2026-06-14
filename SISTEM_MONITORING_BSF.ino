@@ -45,7 +45,7 @@ PubSubClient client(espClient);
 // ======================
 float suhu = 0;
 float kelembapan = 0;
-int nilaiLDR = 0;
+float lightIntensity = 0.0;
 bool dhtError = false;
 
 // Variabel Threshold (Bisa diupdate via MQTT)
@@ -53,8 +53,8 @@ float tempWarn = 30.0;
 float tempCrit = 32.0;
 float humidWarn = 60.0;
 float humidCrit = 50.0;
-float lightWarn = 2500.0;
-float lightCrit = 2000.0;
+float lightWarn = 30.0;
+float lightCrit = 50.0;
 
 Preferences preferences;
 
@@ -152,8 +152,8 @@ void setup() {
   tempCrit = preferences.getFloat("tempCrit", 32.0);
   humidWarn = preferences.getFloat("humidWarn", 60.0);
   humidCrit = preferences.getFloat("humidCrit", 50.0);
-  lightWarn = preferences.getFloat("lightWarn", 2500.0);
-  lightCrit = preferences.getFloat("lightCrit", 2000.0);
+  lightWarn = preferences.getFloat("lightWarn", 30.0);
+  lightCrit = preferences.getFloat("lightCrit", 50.0);
   preferences.end();
 
   // I2C ESP32 (SDA, SCL)
@@ -204,7 +204,8 @@ void loop() {
 
     suhu = dht.readTemperature();
     kelembapan = dht.readHumidity();
-    nilaiLDR = analogRead(LDR_ANALOG);
+    int rawLDR = analogRead(LDR_ANALOG);
+    lightIntensity = ((4095.0 - rawLDR) / 4095.0) * 100.0;
 
     if (isnan(suhu) || isnan(kelembapan)) {
       dhtError = true;
@@ -212,8 +213,8 @@ void loop() {
     } else {
       dhtError = false;
       
-      // Logika Alert Independen (Kritikal)
-      if (suhu > tempCrit || kelembapan < humidCrit || nilaiLDR < lightCrit) {
+      // Logika Alert Independen (Kritikal: terlalu panas, terlalu kering, atau terlalu terang)
+      if (suhu > tempCrit || kelembapan < humidCrit || lightIntensity > lightCrit) {
         digitalWrite(LED_MERAH, HIGH);
         digitalWrite(BUZZER, HIGH);
         digitalWrite(LED_HIJAU, LOW);
@@ -254,11 +255,12 @@ void loop() {
       } else {
         // Tampilan 2: Intensitas Cahaya
         lcd.setCursor(0, 0);
-        lcd.print("Intensitas Cahaya");
+        lcd.print("Cahaya Maggot");
         
         lcd.setCursor(0, 1);
-        lcd.print("ADC: ");
-        lcd.print(nilaiLDR);
+        lcd.print("Intensitas: ");
+        lcd.print(lightIntensity, 0);
+        lcd.print("%");
         
         lcdState = 0; // Kembali ke state awal
       }
@@ -277,7 +279,7 @@ void loop() {
       payload += "\"unique_cod e\": \"" DEVICE_ID "\", ";
       payload += "\"temperature\": " + String(suhu, 1) + ", ";
       payload += "\"humidity\": " + String(kelembapan, 0) + ", ";
-      payload += "\"light_intensity\": " + String(nilaiLDR);
+      payload += "\"light_intensity\": " + String(lightIntensity, 1);
       payload += "}";
 
       Serial.print("Publish pesan: ");

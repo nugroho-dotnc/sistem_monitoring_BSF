@@ -50,8 +50,8 @@ class Threshold(Base):
     temp_critical = Column(Float, default=32.0)
     humid_warning = Column(Float, default=60.0)
     humid_critical = Column(Float, default=50.0)
-    light_warning = Column(Float, default=2500.0)
-    light_critical = Column(Float, default=2000.0)
+    light_warning = Column(Float, default=30.0)
+    light_critical = Column(Float, default=50.0)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     device = relationship("Device", back_populates="threshold")
